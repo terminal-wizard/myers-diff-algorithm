@@ -5,7 +5,7 @@ def read_lines(path):
     with open(path, "rb") as f:
         data = f.read()
     parts = data.split(b"\n")
-    while parts and parts[-1] == b"":
+    if parts and parts[-1] == b"":
         parts.pop()
     return parts
 
@@ -73,6 +73,9 @@ def _solve_mid(a, b, i0, i1, j0, j1, ops):
                     for t in range(i, n):
                         ops.append(("=", a[i0 + t]))
                     return
+    if D <= 16:
+        ops.extend(_small_trace(a, b, i0, i1, j0, j1, D))
+        return
     d = D // 2
     e = D - d
     vf = _row(a, b, i0, i1, j0, j1, d, False)
@@ -96,6 +99,66 @@ def _solve_mid(a, b, i0, i1, j0, j1, ops):
         return
     _solve(a, b, i0, i0 + xb, j0, j0 + yb, ops)
     _solve(a, b, i0 + xb, i1, j0 + yb, j1, ops)
+
+
+def _small_trace(a, b, i0, i1, j0, j1, maxd):
+    n = i1 - i0
+    m = j1 - j0
+    off = maxd
+    V = [0] * (2 * maxd + 1)
+    trace = []
+    found = maxd
+    for D in range(maxd + 1):
+        for k in range(-D, D + 1, 2):
+            if k == -D or (k != D and V[k - 1 + off] < V[k + 1 + off]):
+                x = V[k + 1 + off]
+            else:
+                x = V[k - 1 + off] + 1
+            y = x - k
+            while x < n and y < m and a[i0 + x] == b[j0 + y]:
+                x += 1
+                y += 1
+            V[k + off] = x
+            if x >= n and y >= m:
+                found = D
+                trace.append(V[:])
+                break
+        else:
+            trace.append(V[:])
+            continue
+        break
+    rev = []
+    x = n
+    y = m
+    for D in range(found, 0, -1):
+        k = x - y
+        prev_row = trace[D - 1]
+        if k == -D or (k != D and prev_row[k - 1 + off] < prev_row[k + 1 + off]):
+            pk = k + 1
+        else:
+            pk = k - 1
+        px = prev_row[pk + off]
+        py = px - pk
+        if pk == k + 1:
+            sx = px
+            sy = py + 1
+            while x > sx and y > sy:
+                x -= 1
+                y -= 1
+                rev.append(("=", a[i0 + x]))
+            rev.append(("+", b[j0 + py]))
+        else:
+            sx = px + 1
+            sy = py
+            while x > sx and y > sy:
+                x -= 1
+                y -= 1
+                rev.append(("=", a[i0 + x]))
+            rev.append(("-", a[i0 + px]))
+        x = px
+        y = py
+    rev.reverse()
+    return rev
 
 
 def _fallback_core(a, b):
@@ -198,11 +261,18 @@ def _row(a, b, i0, i1, j0, j1, d, rev):
     off = maxd
     V = [0] * (2 * maxd + 1)
     if rev:
-        get_a = lambda t: a[i1 - 1 - t]
-        get_b = lambda t: b[j1 - 1 - t]
-    else:
-        get_a = lambda t: a[i0 + t]
-        get_b = lambda t: b[j0 + t]
+        for D in range(d + 1):
+            for k in range(-D, D + 1, 2):
+                if k == -D or (k != D and V[k - 1 + off] < V[k + 1 + off]):
+                    x = V[k + 1 + off]
+                else:
+                    x = V[k - 1 + off] + 1
+                y = x - k
+                while x < n and y < m and a[i1 - 1 - x] == b[j1 - 1 - y]:
+                    x += 1
+                    y += 1
+                V[k + off] = x
+        return V
     for D in range(d + 1):
         for k in range(-D, D + 1, 2):
             if k == -D or (k != D and V[k - 1 + off] < V[k + 1 + off]):
@@ -210,7 +280,7 @@ def _row(a, b, i0, i1, j0, j1, d, rev):
             else:
                 x = V[k - 1 + off] + 1
             y = x - k
-            while x < n and y < m and get_a(x) == get_b(y):
+            while x < n and y < m and a[i0 + x] == b[j0 + y]:
                 x += 1
                 y += 1
             V[k + off] = x
@@ -274,11 +344,11 @@ def main():
         print("error: cannot read file", file=sys.stderr)
         sys.exit(2)
     ops = line_ops(a, b)
-    out = sys.stdout.buffer
+    out = bytearray()
     i = 0
     while i < len(ops):
         if ops[i][0] == "=":
-            out.write(b" " + ops[i][1] + b"\n")
+            out.extend(b" " + ops[i][1] + b"\n")
             i += 1
             continue
         dels = []
@@ -290,14 +360,15 @@ def main():
                 inss.append(ops[i][1])
             i += 1
         for d0 in dels:
-            out.write(b"-" + d0 + b"\n")
+            out.extend(b"-" + d0 + b"\n")
         for idx, ins in enumerate(inss):
-            out.write(b"+" + ins + b"\n")
+            out.extend(b"+" + ins + b"\n")
             if mode == "highlight" and idx < len(dels):
                 old = dels[idx].decode("utf-8")
                 new = ins.decode("utf-8")
                 o, n = highlight(old, new)
-                out.write(("? " + o + " | " + n + "\n").encode("ascii"))
+                out.extend(("? " + o + " | " + n + "\n").encode("ascii"))
+    sys.stdout.buffer.write(out)
 
 
 if __name__ == "__main__":

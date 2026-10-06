@@ -11,8 +11,23 @@ def read_lines(path):
 
 
 def myers(a, b):
+    n = len(a)
+    m = len(b)
+    p = 0
+    while p < n and p < m and a[p] == b[p]:
+        p += 1
+    qn = n
+    qm = m
+    while qn > p and qm > p and a[qn - 1] == b[qm - 1]:
+        qn -= 1
+        qm -= 1
     ops = []
-    _solve(a, b, 0, len(a), 0, len(b), ops)
+    for i in range(p):
+        ops.append(("=", a[i]))
+    if p < qn or p < qm:
+        ops.extend(_fallback_core(a[p:qn], b[p:qm]))
+    for i in range(qn, n):
+        ops.append(("=", a[i]))
     return ops
 
 
@@ -223,6 +238,10 @@ def _fallback_core(a, b):
             rev.append(("-", a[px]))
         x = px
         y = py
+    while x > 0 and y > 0 and a[x - 1] == b[y - 1]:
+        x -= 1
+        y -= 1
+        rev.append(("=", a[x]))
     rev.reverse()
     return rev
 
